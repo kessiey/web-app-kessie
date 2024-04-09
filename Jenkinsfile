@@ -1,6 +1,10 @@
+COLOR_MAP = [
+    'SUCCESS': 'good',
+    'FAILURE': 'danger',
+]
+
 pipeline {
     agent any
-    
     tools {
         maven "maven3.9.6"
     }
@@ -43,30 +47,33 @@ pipeline {
             }
         }
 
-                stage("Upload to Nexus") {
+        stage("Quality Gate") {
             steps {
-                nexusArtifactUploader artifacts: [[artifactId: 'maven-web-application', 
-                classifier: '', 
-                file: '/var/lib/jenkins/workspace/first-pipeline-job/target/web-app.war', 
-                type: 'war']], 
-                credentialsId: 'nexus-id', 
-                groupId: 'com.mt', 
-                nexusUrl: '3.12.111.23:8081/', 
-                nexusVersion: 'nexus3', 
-                protocol: 'http', 
-                repository: 'webapp-release', 
-                version: '3.0.6-RELEASE'
+            timeout(time: 1, unit: 'HOURS') {
+                waitForQualityGate abortPipeline: true
+                }
+            }   
+        }   
+
+        stage("Upload to Nexus") {
+            steps {
+                nexusArtifactUploader artifacts: [[artifactId: 'maven-web-application', classifier: '', file: '/var/lib/jenkins/workspace/first-pipeline-job/target/web-app.war', type: 'war']], credentialsId: 'nexus-id', groupId: 'com.mt', nexusUrl: '18.117.245.249:8081/', nexusVersion: 'nexus3', protocol: 'http', repository: 'webapp-release', version: '3.0.6-RELEASE'
             }
         }
 
-                stage("Deploy to UAT") {
+        stage("Deploy to UAT") {
             steps {
-                deploy adapters: [tomcat9(credentialsId: 'tomcat-credentials', 
-                path: '', 
-                url: 'http://3.139.82.80:8080/')], 
-                contextPath: null, 
-                war: 'target/*.war'
+                deploy adapters: [tomcat9(credentialsId: 'tomcat-credentials', path: '', url: 'http://18.188.172.192:8080/')], contextPath: null, war: 'target/*.war'
             }
+        }
+    }
+
+    post {
+        success {
+            slackSend channel: 'team12-africa', color: 'good', message: "Build successful: ${currentBuild.fullDisplayName}"
+        }
+        failure {
+            slackSend channel: 'team12-africa', color: 'danger', message: "Build failed: ${currentBuild.fullDisplayName}"
         }
     }
 }
